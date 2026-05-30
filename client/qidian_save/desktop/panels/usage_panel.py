@@ -11,6 +11,7 @@ class UsagePanel(QWidget):
     def __init__(self, client):
         super().__init__()
         self.client = client
+        self._stat_labels = {}  # label → QLabel reference
         self._init_ui()
 
     def _init_ui(self):
@@ -29,7 +30,7 @@ class UsagePanel(QWidget):
         cl = QVBoxLayout(card)
         cl.setSpacing(20)
 
-        title = QLabel("📊  用量查询")
+        title = QLabel("  用量查询")
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: #1f2937;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(title)
@@ -75,7 +76,7 @@ class UsagePanel(QWidget):
             val = QLabel("--")
             val.setAlignment(Qt.AlignmentFlag.AlignCenter)
             val.setStyleSheet(f"font-size: 28px; font-weight: bold; color: {color};")
-            val.setObjectName(f"stat_{label}")
+            self._stat_labels[label] = val
             bl.addWidget(val)
 
             stats.addWidget(box, 1)
@@ -84,7 +85,7 @@ class UsagePanel(QWidget):
 
         # Refresh button
         self.btn_refresh = QPushButton("  刷新")
-
+        self.btn_refresh.setProperty("btn-type", "secondary")
         self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_refresh.clicked.connect(self._refresh)
         cl.addWidget(self.btn_refresh)
@@ -97,6 +98,9 @@ class UsagePanel(QWidget):
 
         layout.addWidget(card)
 
+        # Auto refresh on init
+        self._refresh()
+
     def _refresh(self):
         try:
             usage = self.client.get_usage()
@@ -105,9 +109,9 @@ class UsagePanel(QWidget):
             remaining = usage["remaining"]
             reset = usage.get("resetAt", "")
 
-            self.findChild(QLabel, "stat_已用").setText(str(used))
-            self.findChild(QLabel, "stat_剩余").setText(str(remaining))
-            self.findChild(QLabel, "stat_限额").setText(str(limit))
+            self._stat_labels["已用"].setText(str(used))
+            self._stat_labels["剩余"].setText(str(remaining))
+            self._stat_labels["限额"].setText(str(limit))
 
             pct = min(100, int(used / limit * 100)) if limit > 0 else 0
             self.progress.setFormat(f"{used} / {limit} 次 ({pct}%)")
@@ -115,5 +119,6 @@ class UsagePanel(QWidget):
 
             self.label_reset.setText(f"重置时间: {reset}")
         except Exception as e:
-            self.findChild(QLabel, "stat_已用").setText("?")
+            for lbl in self._stat_labels.values():
+                lbl.setText("?")
             self.label_reset.setText(f"查询失败: {str(e)}")
