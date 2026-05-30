@@ -6,7 +6,8 @@ from . import DATA_DIR
 from .qidian_client import search_books as qidian_search, get_bookshelf, load_cookies, set_cookie_path
 from .adb_utils import (
     scan_device, pull_device_files, inspect_database, create_qd_zip,
-    load_config, save_config, check_device, config_path,
+    load_config, save_config, check_device, check_root, config_path,
+    list_devices, extract_params,
 )
 
 
@@ -29,7 +30,7 @@ def cmd_desktop(args):
     main()
 
 def _get_client(args) -> QidianSaveClient:
-    base = os.getenv("QIDIAN_SAVE_URL", "http://localhost:8000")
+    base = os.getenv("QIDIAN_SAVE_URL", "http://3.35.241.187:8000")
     token = os.getenv("QIDIAN_SAVE_TOKEN", "") or _load_token()
     api_key = os.getenv("QIDIAN_SAVE_API_KEY", "")
     return QidianSaveClient(base, token=token, api_key=api_key)
@@ -265,94 +266,45 @@ def cmd_qd_config(args):
 
     print("=== .qd 解密配置 ===")
     for k, v in cfg.items():
-        status = "[✓]" if v else "[空]"
+        status = "[OK]" if v else "[空]"
         val = v[:50] if v else ""
         print(f"  {k:12s}: {status} {val}")
     print(f"\n配置路径: {config_path()}")
 
 
-# ── mitmproxy 参数捕获 ──────────────────────────────────────────────
-
-def cmd_capture(args):
-    """mitmproxy 参数捕获 — 自动抓取 QIMEI36 / Pool / UserID"""
-    # 插件路径
-    addon_path = Path(__file__).resolve().parent / "capture_addon.py"
-
-    if args.no_web:
-        # 纯命令行模式: 仅输出指引
-        print("=== mitmproxy 参数捕获 ===")
-        print()
-        print("需要: Python + mitmproxy 已安装 (pip install mitmproxy)")
-        print()
-        print("步骤:")
-        print(f"  1. 启动 mitmproxy:")
-        print(f"     mitmproxy -s \"{addon_path}\" -p 8888")
-        print()
-        print("  2. 手机设置:")
-        print("     - WiFi 代理设为 本机IP:8888")
-        print("     - 浏览器访问 mitm.it 安装证书 (iOS/Android)")
-        print("     - 打开 QDReader，浏览一章付费章节")
-        print()
-        print("  3. 参数自动保存到:")
-        print(f"     {config_path()}")
-        print()
-        print("  4. 验证:")
-        print("     python -m qidian_save qd-config")
-        return
-
-    print("=== 启动 mitmweb 参数捕获 ===")
-    print()
-
-    # 检测 mitmweb
-    try:
-        subprocess.run(["mitmweb", "--version"], capture_output=True, text=True, timeout=10)
-    except FileNotFoundError:
-        print("[!!] 未找到 mitmweb，请先安装: pip install mitmproxy")
-        print()
-        print("或在另一终端手动运行:")
-        print(f"  mitmweb -s \"{addon_path}\" -p 8888")
-        return
-
-    print(f"插件: {addon_path}")
-    print(f"配置: {config_path()}")
-    print()
-    print("手机设置 WiFi 代理到本机 IP:8888")
-    print("打开 QDReader，浏览一章付费章节")
-    print("参数捕获后自动保存到配置文件")
-    print()
-    print("按 Ctrl+C 停止捕获")
-    print()
-
-    try:
-        subprocess.run(
-            ["mitmweb", "-s", str(addon_path), "-p", str(args.port)],
-            timeout=args.timeout if args.timeout > 0 else None,
-        )
-    except KeyboardInterrupt:
-        print("\n已停止捕获")
-    except Exception as e:
-        print(f"mitmweb 启动失败: {e}")
-        print(f"请手动运行: mitmweb -s \"{addon_path}\" -p {args.port}")
-
-    # 显示捕获结果
-    cfg = load_config()
-    captured = [k for k, v in cfg.items() if v]
-    if captured:
-        print(f"\n✓ 已捕获参数: {', '.join(captured)}")
-    else:
-        print("\n! 未捕获到参数，请确认手机已设置代理并浏览了付费章节")
+# ── mitmproxy 已废弃，使用 adb-extract 替代 ──────────────────────────
+# 原 capture_addon.py / _capture_runner.py 已删除
+pass
 
 
 # ── ADB 操作 ──────────────────────────────────────────────────────
 
+def _resolve_device(serial: str | None) -> str | None:
+    """解析 --device 参数，自动处理单设备情况"""
+    if serial:
+        return serial
+    devices = list_devices()
+    if len(devices) == 0:
+        return None
+    if len(devices) == 1:
+        return devices[0]["serial"]
+    # 多设备时提示用户
+    print(f"[!] 检测到 {len(devices)} 个设备，请用 --device / -s 指定:\n")
+    for d in devices:
+        print(f"    python -m qidian_save <命令> -s {d['serial']}")
+    print()
+    return None
+
+
 def cmd_adb_scan(args):
     """扫描 Android 设备上的 .qd 文件"""
+    serial = _resolve_device(args.device)
     print("=== ADB 扫描设备 ===")
     if not check_device():
         print("[!!] 未检测到 Android 设备，请连接 USB 并开启调试")
         return
 
-    books = scan_device()
+    books = scan_device(device_serial=serial)
     if not books:
         print("  未找到 .qd 文件（可能尚未打开过付费章节）")
         return
@@ -373,6 +325,7 @@ def cmd_adb_scan(args):
 
 def cmd_adb_pull(args):
     """从 Android 设备拉取 .qd 文件和数据库"""
+    serial = _resolve_device(args.device)
     output = args.output or os.path.join(
         os.path.dirname(__file__), "..", "qd_files"
     )
@@ -381,12 +334,63 @@ def cmd_adb_pull(args):
         return
 
     print(f"=== 拉取 .qd 文件 → {output} ===")
-    result = pull_device_files(output)
+    result = pull_device_files(output, device_serial=serial)
     print(f"  拉取完成: {result['qdFiles']} 个 .qd 文件, {result['databases']} 个数据库")
     for u in result.get('users', []):
         print(f"    [{u['userId']}]: {u['count']} 个文件")
     if result['total'] == 0:
         print("  未找到 .qd 文件")
+
+
+def cmd_adb_extract(args):
+    """从已 root 的 Android 设备直接提取解密参数（真机/模拟器均可用）"""
+    serial = _resolve_device(args.device)
+    print("=== ADB 参数提取 ===")
+    if not check_device():
+        print("[!!] 未检测到 Android 设备")
+        return
+
+    print("正在检查 root 权限...")
+    if not check_root(device_serial=serial):
+        print("[!!] root 不可用，请确认设备已 root 或使用模拟器\n")
+        print("  模拟器默认有 root 权限，连接后重试即可")
+        return
+
+    print("正在从设备提取解密参数...")
+    result = extract_params(device_serial=serial)
+
+    print()
+    qimei36 = result.get("qimei36", "")
+    user_id = result.get("userId", "")
+    pool_b64 = result.get("pool_b64", "")
+    errors = result.get("errors", [])
+
+    print(f"  QIMEI36: [{'OK' if qimei36 else '--'}] {qimei36 if qimei36 else '未提取'}")
+    print(f"  userId:  [{'OK' if user_id else '--'}] {user_id if user_id else '未提取'}")
+    print(f"  Pool:    [{'OK' if pool_b64 else '--'}] {pool_b64[:50] + '...' if pool_b64 else '未提取'}")
+
+    if errors:
+        print(f"\n[!] 部分参数提取失败:")
+        for e in errors:
+            print(f"   - {e}")
+
+    # 保存到配置
+    if qimei36 or user_id or pool_b64:
+        cfg = load_config()
+        if qimei36:
+            cfg["qimei36"] = qimei36
+        if user_id:
+            cfg["userId"] = user_id
+        if pool_b64:
+            cfg["pool_b64"] = pool_b64
+        save_config(cfg)
+        print(f"\n[OK] 参数已保存到配置: {config_path()}")
+
+        print("\n[提示] 参数已就绪，可执行以下操作:")
+        print(f"   python -m qidian_save adb-pull{' -s ' + serial if serial else ''}  # 拉取 .qd 文件")
+        print(f"   python -m qidian_save decrypt <目录>    # 上传解密")
+    else:
+        print("\n[!!] 未提取到任何参数，无法继续")
 
 
 def cmd_adb_db(args):
@@ -476,16 +480,16 @@ def build_parser():
     p_qd_cfg.add_argument("--set", help="设置配置项 (key=value)")
     p_qd_cfg.set_defaults(func=cmd_qd_config)
 
-    p_cap = sub.add_parser("capture", help="mitmproxy 参数捕获（自动抓取 QIMEI36/Pool/UserID）")
-    p_cap.add_argument("--port", type=int, default=8888, help="mitmproxy 监听端口（默认 8888）")
-    p_cap.add_argument("--no-web", action="store_true", help="仅显示指引，不启动 mitmweb")
-    p_cap.add_argument("--timeout", type=int, default=0, help="自动停止时间（秒，0=不限）")
-    p_cap.set_defaults(func=cmd_capture)
+    p_adb_extract = sub.add_parser("adb-extract", help="从已 root 设备/模拟器直接提取解密参数")
+    p_adb_extract.add_argument("--device", "-s", help="设备序列号（多设备时必填）")
+    p_adb_extract.set_defaults(func=cmd_adb_extract)
 
     p_adb_scan = sub.add_parser("adb-scan", help="ADB 扫描设备上的 .qd 文件")
+    p_adb_scan.add_argument("--device", "-s", help="设备序列号（多设备时必填）")
     p_adb_scan.set_defaults(func=cmd_adb_scan)
 
     p_adb_pull = sub.add_parser("adb-pull", help="从 ADB 设备拉取 .qd 文件")
+    p_adb_pull.add_argument("--device", "-s", help="设备序列号（多设备时必填）")
     p_adb_pull.add_argument("--output", "-o", help="保存目录")
     p_adb_pull.set_defaults(func=cmd_adb_pull)
 

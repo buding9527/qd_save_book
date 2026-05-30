@@ -1,9 +1,9 @@
-"""qidian_save 桌面主应用 — 登录后才能进入主界面"""
+"""qidian_save 桌面主应用 — FluentWindow 重构版"""
 import sys, os
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QPushButton, QStackedWidget, QStatusBar, QLabel, QFrame,
+    QApplication, QWidget, QVBoxLayout, QLabel, QHBoxLayout,
+    QDialog, QPushButton,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
@@ -11,6 +11,11 @@ from PyQt6.QtGui import QFont
 from ..api_client import QidianSaveClient
 from ..qidian_client import set_cookie_path
 
+from qfluentwidgets import (
+    setTheme, Theme, FluentIcon as FIF,
+    FluentWindow, NavigationItemPosition,
+)
+from .theme import DESIGN_TOKENS, apply_design_tokens, load_qss
 
 TOKEN_FILE = Path.home() / ".qidian_save" / "token"
 
@@ -36,257 +41,230 @@ from .panels.usage_panel import UsagePanel
 from .panels.bookshelf_panel import BookshelfPanel
 
 
-NAV_ITEMS = [
-    ("起点扫码", "📱"),
-    ("搜索书籍", "🔍"),
-    ("书籍详情", "📖"),
-    ("书架", "📚"),
-    ("在线备份", "💾"),
-    ("本地备份", "🔓"),
-    ("用量查询", "📊"),
-]
+# ── 登录对话框 ────────────────────────────────────────────
 
+class LoginDialog(QDialog):
+    """全屏居中登录对话框，登录成功后返回 token。"""
 
-class NavButton(QPushButton):
-    def __init__(self, text, icon_char, parent=None):
+    def __init__(self, client: QidianSaveClient, parent=None):
         super().__init__(parent)
-        self.setText(f"  {icon_char}  {text}")
-        self.setFixedHeight(44)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setCheckable(True)
-        font = QFont("Microsoft YaHei", 11)
-        self.setFont(font)
-
-    def set_active(self, active: bool):
-        self.setChecked(active)
-        if active:
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: #3b82f6; color: white;
-                    border: none; border-radius: 8px;
-                    padding: 0 16px; text-align: left;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent; color: #cbd5e1;
-                    border: none; border-radius: 8px;
-                    padding: 0 16px; text-align: left;
-                }
-                QPushButton:hover {
-                    background-color: rgba(255,255,255,0.1);
-                }
-            """)
-
-
-class MainWindow(QMainWindow):
-    def __init__(self, client: QidianSaveClient):
-        super().__init__()
         self.client = client
-        self.token = ""
-        self.current_task_id = None
+        self._token = ""
+        self.setWindowTitle("qidian_save — 登录")
+        self.setMinimumSize(500, 500)
+        self.resize(520, 600)
+        self.setModal(True)
+        self.setStyleSheet("background-color: #f5f5f7;")
         self._init_ui()
+        self._try_auto_login()
 
     def _init_ui(self):
-        self.setWindowTitle("qidian_save — 起点书籍保存工具")
-        self.setMinimumSize(1100, 720)
-        self.resize(1200, 800)
-
-        # ── 顶层 QStackedWidget: 登录页 / 主界面 ──
-        self.root_stack = QStackedWidget()
-        self.setCentralWidget(self.root_stack)
-
-        # ─── Page 0: 登录页（全屏居中，无侧栏） ───
-        login_wrapper = QWidget()
-        login_wrapper.setStyleSheet("background-color: #f0f4f8;")
-        login_layout = QVBoxLayout(login_wrapper)
-        login_layout.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.login_panel = LoginPanel(self.client, self._on_login_success)
-        login_layout.addWidget(self.login_panel)
-        self.root_stack.addWidget(login_wrapper)
-
-        # ─── Page 1: 主界面（侧栏 + 面板 + 状态栏） ───
-        main_page = QWidget()
-        main_layout = QHBoxLayout(main_page)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        # ── Sidebar ──
-        sidebar = QFrame()
-        sidebar.setFixedWidth(180)
-        sidebar.setStyleSheet("background-color: #1e1e2e;")
-        sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(12, 20, 12, 20)
-        sidebar_layout.setSpacing(4)
-
-        logo = QLabel("  📚  qidian_save")
-        logo.setFont(QFont("Microsoft YaHei", 13, QFont.Weight.Bold))
-        logo.setStyleSheet("color: white; padding: 8px 4px 20px 4px;")
-        sidebar_layout.addWidget(logo)
-
-        self.nav_buttons = []
-        for i, (name, icon) in enumerate(NAV_ITEMS):
-            btn = NavButton(name, icon)
-            btn.clicked.connect(lambda checked, idx=i: self._switch_panel(idx))
-            sidebar_layout.addWidget(btn)
-            self.nav_buttons.append(btn)
-
-        sidebar_layout.addStretch()
-
-        ver = QLabel("v0.1.0 · client-bate")
-        ver.setFont(QFont("Microsoft YaHei", 9))
-        ver.setStyleSheet("color: #6b7280; padding: 8px 4px;")
-        sidebar_layout.addWidget(ver)
-
-        main_layout.addWidget(sidebar)
-
-        # ── Content area ──
-        content = QFrame()
-        content.setStyleSheet("background-color: #f8f9fa;")
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.stack = QStackedWidget()
-        content_layout.addWidget(self.stack)
-
-        main_layout.addWidget(content, 1)
-
-        # ── Panels ──
-        self.panels = []
-        self.panels.append(QidianLoginPanel(self.client))
-        self.panels.append(SearchPanel(self.client, self._on_book_selected))
-        self.panels.append(BookDetailPanel(self.client, self._on_backup_started))
-        self.panels.append(BookshelfPanel(self.client, self._on_book_selected))
-        self.panels.append(BackupPanel(self.client))
-        self.panels.append(QDDecryptPanel(self.client))
-        self.panels.append(UsagePanel(self.client))
-
-        for p in self.panels:
-            self.stack.addWidget(p)
-
-        self.root_stack.addWidget(main_page)
-
-        # ── Status bar ──
-        self.status_bar = QStatusBar()
-        self.status_bar.setStyleSheet("""
-            QStatusBar { background: #f1f5f9; border-top: 1px solid #e2e8f0; padding: 2px 12px; }
-            QStatusBar::item { border: none; }
-        """)
-        self.status_label = QLabel("未登录")
-        self.status_label.setFont(QFont("Microsoft YaHei", 10))
-        self.status_bar.addWidget(self.status_label)
-        self.setStatusBar(self.status_bar)
-
-        # 启动时仅显示登录页
-        self.root_stack.setCurrentIndex(0)
-        self.status_bar.setVisible(False)
-
-        # 如果已有 Token（文件或环境变量），验证后自动跳过登录
-        if self.client.session.headers.get("Authorization"):
-            QTimer.singleShot(100, self._try_auto_login)
-
-        # Usage timer（登录后启用）
-        self._usage_timer = QTimer()
-        self._usage_timer.timeout.connect(self._update_usage)
-
-    def _try_auto_login(self):
-        """尝试使用已保存的 Token 自动登录（QTimer 主线程重试，避免线程安全问题）"""
-        self._login_attempts = 0
-        self._max_login_attempts = 3
-        self._do_auto_login()
-
-    def _do_auto_login(self):
-        import requests as _req
-        token = self.client.session.headers.get("Authorization", "").replace("Bearer ", "")
-        if not token:
-            return
-
-        self._login_attempts += 1
-        self.login_panel.show_auto_login_status(
-            f"正在自动登录 ({self._login_attempts}/{self._max_login_attempts})..."
-        )
-
-        try:
-            self.client.get_me()
-            self._on_login_success(token)
-            return
-        except (_req.ConnectionError, _req.Timeout):
-            if self._login_attempts < self._max_login_attempts:
-                QTimer.singleShot(2000, self._do_auto_login)
-            else:
-                self.login_panel.show_auto_login_status(
-                    f"自动登录失败: 无法连接到服务器 ({self.client.base_url})", error=True)
-        except Exception as e:
-            reason = str(e)
-            if "403" in reason and "封禁" in reason:
-                self.login_panel.show_auto_login_status("账号已被封禁，请联系管理员", error=True)
-            elif "403" in reason:
-                # 非封禁 403（如限流、IP 封禁）— 显示服务端原文
-                self.login_panel.show_auto_login_status(f"自动登录失败: {reason[:80]}", error=True)
-            elif "401" in reason or "unauthorized" in reason.lower():
-                self.login_panel.show_auto_login_status("Token 已过期，请重新登录", error=True)
-            else:
-                self.login_panel.show_auto_login_status(f"自动登录失败: {reason[:50]}", error=True)
-
-    def _switch_panel(self, idx: int):
-        for btn in self.nav_buttons:
-            btn.set_active(False)
-        self.nav_buttons[idx].set_active(True)
-        self.stack.setCurrentIndex(idx)
+        layout.addWidget(self.login_panel)
 
     def _on_login_success(self, token: str):
+        self._token = token
+        self.accept()
+
+    def _try_auto_login(self):
+        if not self.client.session.headers.get("Authorization"):
+            return
+        import requests as _req
+        try:
+            self.client.get_me()
+            token = self.client.session.headers.get("Authorization", "").replace("Bearer ", "")
+            if token:
+                self._on_login_success(token)
+        except Exception:
+            pass
+
+    def get_token(self) -> str:
+        return self._token
+
+
+# ── 页面容器 ──────────────────────────────────────────────
+
+class PageWidget(QWidget):
+    """单个子界面容器，统一带 statusbar 引用。"""
+    def __init__(self, name: str, widget: QWidget, parent=None):
+        super().__init__(parent)
+        self.setObjectName(name.replace(" ", "-"))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(widget)
+        self._inner = widget
+
+
+# ── 主窗口 ────────────────────────────────────────────────
+
+class MainWindow(FluentWindow):
+    def __init__(self, client: QidianSaveClient, token: str):
+        super().__init__()
+        self.client = client
         self.token = token
-        self.client.set_token(token)
-        _save_token(token)  # 持久化 Token，下次启动自动登录
-        self.status_label.setText(f"已登录 · Token: {token[:16]}...")
-        self.status_bar.setVisible(True)
-        self.root_stack.setCurrentIndex(1)  # 切换到主界面
-        self._switch_panel(0)               # 默认选中起点扫码
-        self._usage_timer.start(60000)
+        self.current_task_id = None
+        self._current_theme = Theme.LIGHT
+        self._setup_panels()
+        self._setup_theme()
+        self._setup_status_bar()
+        self._start_usage_timer()
+
+        # 自动应用 QSS
+        self._apply_qss()
+
+    # ── 子界面注册 ─────────────────────────────────────────
+
+    def _setup_panels(self):
+        """注册所有面板到导航系统。"""
+        # 创建面板实例
+        self.panels = {}
+        self.panels["search"]   = SearchPanel(self.client, self._on_book_selected)
+        self.panels["qrcode"]   = QidianLoginPanel(self.client)
+        self.panels["bookshelf"] = BookshelfPanel(self.client, self._on_book_selected)
+        self.panels["detail"]   = BookDetailPanel(self.client, self._on_backup_started)
+        self.panels["backup"]   = BackupPanel(self.client)
+        self.panels["decrypt"]  = QDDecryptPanel(self.client)
+        self.panels["usage"]    = UsagePanel(self.client)
+
+        # 导航项配置: (key, icon, label, position)
+        nav_items = [
+            ("search",    FIF.SEARCH,           "搜索书籍",  NavigationItemPosition.TOP),
+            ("qrcode",    FIF.QRCODE,           "起点扫码",  NavigationItemPosition.TOP),
+            ("bookshelf", FIF.LIBRARY,          "书架",     NavigationItemPosition.TOP),
+            ("backup",    FIF.CLOUD_DOWNLOAD,   "在线备份",  NavigationItemPosition.TOP),
+            ("decrypt",   FIF.DEVELOPER_TOOLS,  ".qd 解密", NavigationItemPosition.TOP),
+            ("usage",     FIF.HISTORY,          "用量查询",  NavigationItemPosition.BOTTOM),
+        ]
+
+        for key, icon, label, pos in nav_items:
+            widget = self.panels[key]
+            widget.setObjectName(f"panel_{key}")
+            self.addSubInterface(widget, icon, label, pos)
+
+        # 书籍详情 → 不作为导航项，直接加入内部 stackedWidget 供程序跳转
+        self.detail_panel = self.panels["detail"]
+        self.detail_panel.setObjectName("panel_detail")
+        self.stackedWidget.addWidget(self.detail_panel)
+        self.stack: QStackedWidget  # FluentWindow 内部 stack
+        # 找到 FluentWindow 内部的 QStackedWidget 以便直接切换
 
     def _on_book_selected(self, book_id: str, book_name: str):
-        self.panels[2].load_book(book_id, book_name)
-        self._switch_panel(2)
+        self.panels["detail"].load_book(book_id, book_name)
+        # 程序跳转到详情面板（不在导航中高亮）
+        self.switchTo(self.panels["detail"])
 
     def _on_backup_started(self, task_id: int):
         self.current_task_id = task_id
-        self.panels[4].load_task(task_id)
-        self._switch_panel(4)
+        self.panels["backup"].load_task(task_id)
+        self.switchTo(self.panels["backup"])
+
+    # ── 主题 ───────────────────────────────────────────────
+
+    def _setup_theme(self):
+        setTheme(self._current_theme)
+        apply_design_tokens(self._current_theme)
+
+    def _apply_qss(self):
+        qss = load_qss(self._current_theme)
+        if qss:
+            self.setStyleSheet(qss)
+
+    # ── 状态栏 ─────────────────────────────────────────────
+
+    def _setup_status_bar(self):
+        """在导航底部添加信息面板（FluentWindow 无原生 QStatusBar）。"""
+        self.status_container = QWidget()
+        self.status_container.setObjectName("statusBarContainer")
+        self.status_container.setFixedHeight(36)
+        layout = QHBoxLayout(self.status_container)
+        layout.setContentsMargins(12, 4, 12, 4)
+        layout.setSpacing(8)
+
+        self.status_label = QLabel("已登录")
+        self.status_label.setFont(QFont(DESIGN_TOKENS["font_family"], 9))
+        layout.addWidget(self.status_label)
+
+        layout.addStretch()
+
+        self.usage_indicator = QLabel()
+        self.usage_indicator.setFont(QFont(DESIGN_TOKENS["font_family"], 9))
+        layout.addWidget(self.usage_indicator)
+
+        # 用可点击容器让 NavigationInterface 接受
+        container = QPushButton()
+        container.setObjectName("statusBarBtn")
+        container.setFixedHeight(36)
+        container.setCursor(Qt.CursorShape.ArrowCursor)
+        # 把 status_container 放进按钮里
+        btn_layout = QHBoxLayout(container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.addWidget(self.status_container)
+
+        self.navigationInterface.addWidget(
+            "statusBar", container,
+            position=NavigationItemPosition.BOTTOM,
+        )
+
+    # ── 用量定时器 ─────────────────────────────────────────
+
+    def _start_usage_timer(self):
+        self._update_usage()
+        self._usage_timer = QTimer(self)
+        self._usage_timer.timeout.connect(self._update_usage)
+        self._usage_timer.start(60000)
 
     def _update_usage(self):
         if not self.token:
             return
         try:
             usage = self.client.get_usage()
-            self.status_label.setText(
-                f"已登录 · 今日 {usage['chaptersUsed']}/{usage['limit']} 次"
-            )
+            self.usage_indicator.setText(f"今日 {usage['chaptersUsed']} / {usage['limit']} 次")
         except Exception:
             pass
 
 
 def main():
+    # Qt6 默认启用 DPI 缩放 (PerMonitorV2)。SetProcessDpiAwarenessContext 警告无害
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    # 初始化 Cookie 持久化路径
+    # 全局默认字体
+    font = QFont(
+        DESIGN_TOKENS["font_family"],
+        int(DESIGN_TOKENS["font_size_body"].replace("px", ""))
+    )
+    app.setFont(font)
+
+    # 初始化
     set_cookie_path()
 
-    # Global stylesheet
-    app.setStyleSheet("""
-        QToolTip {
-            background-color: #1f2937; color: white;
-            border: none; padding: 6px 10px; border-radius: 4px;
-            font-size: 12px;
-        }
-    """)
-
-    base = os.getenv("QIDIAN_SAVE_URL", "http://localhost:8000")
+    base = os.getenv("QIDIAN_SAVE_URL", "http://3.35.241.187:8000")
     token = os.getenv("QIDIAN_SAVE_TOKEN", "") or _load_token()
     client = QidianSaveClient(base, token=token)
 
-    window = MainWindow(client)
+    # ── 登录流程 ──
+    if token:
+        # 有 token，先验证
+        client.set_token(token)
+        try:
+            client.get_me()
+        except Exception:
+            token = ""  # 失效，重新登录
+
+    if not token:
+        dlg = LoginDialog(client)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        token = dlg.get_token()
+        _save_token(token)
+
+    # ── 主窗口 ──
+    client.set_token(token)
+    window = MainWindow(client, token)
+    window.setWindowTitle("qidian_save")
+    window.resize(1200, 800)
     window.show()
     sys.exit(app.exec())
 

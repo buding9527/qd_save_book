@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QLabel, QFrame,
 )
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
+from PyQt6.QtGui import QFont, QColor
 from ...qidian_client import get_bookshelf, load_cookies
 
 
@@ -19,6 +20,7 @@ class BookshelfPanel(QWidget):
         super().__init__()
         self.client = client
         self.on_select_book = on_select_book
+        self._books_data = []  # [{id, name}, ...] 用于 cellClicked 查找
         self._sig = _BookshelfSignal()
         self._sig.books_ready.connect(self._on_books)
         self._sig.books_error.connect(lambda e: self.status_label.setText(f"加载失败: {e}"))
@@ -45,15 +47,7 @@ class BookshelfPanel(QWidget):
         tr.setSpacing(12)
 
         self.btn_refresh = QPushButton("  刷新书架")
-        self.btn_refresh.setStyleSheet("""
-            QPushButton {
-                background-color: #2563eb; color: white; border: none;
-                border-radius: 8px; padding: 10px 24px; font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #1d4ed8; }
-            QPushButton:disabled { background-color: #93c5fd; }
-        """)
+        self.btn_refresh.setProperty("class", "secondary")
         self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_refresh.clicked.connect(self._load_bookshelf)
         tr.addWidget(self.btn_refresh)
@@ -101,6 +95,7 @@ class BookshelfPanel(QWidget):
         h.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         h.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
 
+        self.table.cellClicked.connect(self._on_cell_clicked)
         tl.addWidget(self.table)
         layout.addWidget(table_frame, 1)
 
@@ -131,29 +126,27 @@ class BookshelfPanel(QWidget):
         threading.Thread(target=_do, daemon=True).start()
 
     def _on_books(self, books: list):
+        self._books_data = [{"id": b["bookId"], "name": b["bookName"]} for b in books]
         self.table.setRowCount(len(books))
         for i, b in enumerate(books):
             self.table.setItem(i, 0, QTableWidgetItem(b["bookId"]))
             self.table.setItem(i, 1, QTableWidgetItem(b["bookName"]))
             self.table.setItem(i, 2, QTableWidgetItem(b["authorName"]))
 
-            btn_sel = QPushButton("查看详情")
-            btn_sel.setStyleSheet("""
-                QPushButton {
-                    background: #2563eb; color: white; border: none;
-                    border-radius: 4px; padding: 4px 12px; font-size: 12px;
-                }
-                QPushButton:hover { background: #1d4ed8; }
-            """)
-            btn_sel.setCursor(Qt.CursorShape.PointingHandCursor)
-            bid = b["bookId"]
-            bname = b["bookName"]
-            btn_sel.clicked.connect(lambda checked, x=bid, n=bname: self.on_select_book(x, n))
-            self.table.setCellWidget(i, 3, btn_sel)
+            item = QTableWidgetItem("查看详情 →")
+            item.setForeground(QColor("#007aff"))
+            item.setFont(QFont("Microsoft YaHei", 12, QFont.Weight.Bold))
+            self.table.setItem(i, 3, item)
 
         self.status_label.setText(f"共 {len(books)} 本书")
         self.btn_refresh.setEnabled(True)
         self.btn_refresh.setText("  刷新书架")
+
+    def _on_cell_clicked(self, row: int, col: int):
+        """点击操作列（col=3）的蓝字详情 → 跳转书籍详情。"""
+        if col == 3 and row < len(self._books_data):
+            book = self._books_data[row]
+            self.on_select_book(book["id"], book["name"])
 
     def _on_no_cookies(self):
         self.status_label.setText("未登录起点 — 请先到「起点扫码」面板扫码登录")

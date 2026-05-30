@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 from ...qidian_client import search_books as qidian_search
 
 
@@ -21,6 +21,7 @@ class SearchPanel(QWidget):
         super().__init__()
         self.client = client
         self.on_select_book = on_select_book
+        self._results_data = []  # [{id, name}, ...]
         self._sig = _SearchSignal()
         self._sig.results_ready.connect(self._on_results)
         self._sig.search_error.connect(lambda e: self.status_label.setText(f"搜索失败: {e}"))
@@ -44,26 +45,12 @@ class SearchPanel(QWidget):
 
         self.input_keyword = QLineEdit()
         self.input_keyword.setPlaceholderText("输入书名、作者或关键词...")
-        self.input_keyword.setStyleSheet("""
-            QLineEdit {
-                border: 1px solid #d1d5db; border-radius: 8px;
-                padding: 12px 16px; font-size: 14px; background: #f9fafb;
-            }
-            QLineEdit:focus { border-color: #3b82f6; background: white; }
-        """)
+
         self.input_keyword.returnPressed.connect(self._do_search)
         sr.addWidget(self.input_keyword, 1)
 
         self.btn_search = QPushButton("  搜索")
-        self.btn_search.setStyleSheet("""
-            QPushButton {
-                background-color: #2563eb; color: white; border: none;
-                border-radius: 8px; padding: 12px 28px; font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #1d4ed8; }
-            QPushButton:disabled { background-color: #93c5fd; }
-        """)
+
         self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_search.clicked.connect(self._do_search)
         sr.addWidget(self.btn_search)
@@ -107,6 +94,7 @@ class SearchPanel(QWidget):
         header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
 
+        self.table.cellClicked.connect(self._on_cell_clicked)
         tl.addWidget(self.table)
 
         layout.addWidget(table_frame, 1)
@@ -143,27 +131,25 @@ class SearchPanel(QWidget):
         threading.Thread(target=_search, daemon=True).start()
 
     def _on_results(self, results: list):
+        self._results_data = [{"id": r["bookId"], "name": r["bookName"]} for r in results]
         self.table.setRowCount(len(results))
         for i, r in enumerate(results):
             self.table.setItem(i, 0, QTableWidgetItem(r["bookId"]))
             self.table.setItem(i, 1, QTableWidgetItem(r["bookName"]))
             self.table.setItem(i, 2, QTableWidgetItem(r["authorName"]))
 
-            btn_sel = QPushButton("查看详情")
-            btn_sel.setStyleSheet("""
-                QPushButton {
-                    background: #2563eb; color: white; border: none;
-                    border-radius: 4px; padding: 4px 12px; font-size: 12px;
-                }
-                QPushButton:hover { background: #1d4ed8; }
-            """)
-            btn_sel.setCursor(Qt.CursorShape.PointingHandCursor)
-            bid = r["bookId"]
-            bname = r["bookName"]
-            btn_sel.clicked.connect(lambda checked, x=bid, n=bname: self.on_select_book(x, n))
-            self.table.setCellWidget(i, 3, btn_sel)
+            item = QTableWidgetItem("查看详情 →")
+            item.setForeground(QColor("#007aff"))
+            item.setFont(QFont("Microsoft YaHei", 12, QFont.Weight.Bold))
+            self.table.setItem(i, 3, item)
 
         self.status_label.setText(f"找到 {len(results)} 个结果")
+
+    def _on_cell_clicked(self, row: int, col: int):
+        """点击操作列（col=3）的蓝字详情 → 跳转。"""
+        if col == 3 and row < len(self._results_data):
+            book = self._results_data[row]
+            self.on_select_book(book["id"], book["name"])
 
     def _on_search_done(self):
         self.btn_search.setEnabled(True)

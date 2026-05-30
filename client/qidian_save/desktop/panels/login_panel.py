@@ -30,22 +30,8 @@ BTN_OUTLINE = """
     }
     QPushButton:hover { background: #f3f4f6; border-color: #9ca3af; }
 """
-BTN_PRIMARY = """
-    QPushButton {
-        background-color: #2563eb; color: white; border: none;
-        border-radius: 8px; padding: 10px 24px; font-size: 14px;
-        font-weight: bold;
-    }
-    QPushButton:hover { background-color: #1d4ed8; }
-    QPushButton:disabled { background-color: #93c5fd; }
-"""
-INPUT_STYLE = """
-    QLineEdit {
-        border: 1px solid #d1d5db; border-radius: 6px;
-        padding: 10px 14px; font-size: 13px; background: #f9fafb;
-    }
-    QLineEdit:focus { border-color: #3b82f6; background: white; }
-"""
+
+
 
 
 class LoginPanel(QWidget):
@@ -85,7 +71,7 @@ class LoginPanel(QWidget):
 
         # ── GitHub Device Flow ──
         self.btn_github = QPushButton("  使用 GitHub 登录")
-        self.btn_github.setStyleSheet(BTN_PRIMARY)
+
         self.btn_github.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_github.setFixedHeight(44)
         self.btn_github.clicked.connect(self._start_github_login)
@@ -109,14 +95,7 @@ class LoginPanel(QWidget):
         cc.addWidget(self.label_uri)
 
         self.btn_open = QPushButton("  打开浏览器")
-        self.btn_open.setStyleSheet("""
-            QPushButton {
-                background: #16a34a; color: white; border: none;
-                border-radius: 6px; padding: 8px 20px; font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background: #15803d; }
-        """)
+        self.btn_open.setProperty("class", "secondary")
         self.btn_open.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_open.clicked.connect(self._open_browser)
         cc.addWidget(self.btn_open)
@@ -142,11 +121,11 @@ class LoginPanel(QWidget):
         tr = QHBoxLayout()
         self.input_token = QLineEdit()
         self.input_token.setPlaceholderText("粘贴 JWT Token...")
-        self.input_token.setStyleSheet(INPUT_STYLE)
+
         tr.addWidget(self.input_token, 1)
 
         self.btn_apply = QPushButton("应用")
-        self.btn_apply.setStyleSheet(BTN_PRIMARY)
+
         self.btn_apply.setFixedWidth(80)
         self.btn_apply.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_apply.clicked.connect(self._apply_token)

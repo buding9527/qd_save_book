@@ -118,28 +118,13 @@ class BackupPanel(QWidget):
         cr = QHBoxLayout(controls)
 
         self.btn_refresh = QPushButton("  刷新")
-        self.btn_refresh.setStyleSheet("""
-            QPushButton {
-                background: #2563eb; color: white; border: none;
-                border-radius: 6px; padding: 8px 20px; font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background: #1d4ed8; }
-        """)
+
         self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_refresh.clicked.connect(self._poll_task)
         cr.addWidget(self.btn_refresh)
 
         self.btn_download_all = QPushButton("  下载全部")
-        self.btn_download_all.setStyleSheet("""
-            QPushButton {
-                background: #10b981; color: white; border: none;
-                border-radius: 6px; padding: 8px 20px; font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background: #059669; }
-            QPushButton:disabled { background: #6ee7b7; }
-        """)
+        self.btn_download_all.setProperty("class", "success")
         self.btn_download_all.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_download_all.clicked.connect(self._download_all)
         cr.addWidget(self.btn_download_all)
@@ -149,14 +134,7 @@ class BackupPanel(QWidget):
         cr.addWidget(self.label_dl_progress)
 
         self.btn_cleanup = QPushButton("  清理任务")
-        self.btn_cleanup.setStyleSheet("""
-            QPushButton {
-                background: #ef4444; color: white; border: none;
-                border-radius: 6px; padding: 8px 20px; font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background: #dc2626; }
-        """)
+        self.btn_cleanup.setProperty("class", "danger")
         self.btn_cleanup.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cleanup.clicked.connect(self._cleanup)
         cr.addWidget(self.btn_cleanup)

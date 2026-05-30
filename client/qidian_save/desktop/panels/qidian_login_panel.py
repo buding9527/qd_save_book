@@ -77,15 +77,7 @@ class QidianLoginPanel(QWidget):
         sl.addWidget(self.label_qr)
 
         self.btn_generate = QPushButton("  生成二维码")
-        self.btn_generate.setStyleSheet("""
-            QPushButton {
-                background-color: #2563eb; color: white; border: none;
-                border-radius: 8px; padding: 12px 24px; font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #1d4ed8; }
-            QPushButton:disabled { background-color: #93c5fd; }
-        """)
+        self.btn_generate.setProperty("class", "secondary")
         self.btn_generate.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_generate.clicked.connect(self._generate_qr)
         sl.addWidget(self.btn_generate)

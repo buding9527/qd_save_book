@@ -109,13 +109,7 @@ class BookDetailPanel(QWidget):
         cr.setSpacing(12)
 
         self.btn_select_all = QPushButton("全选")
-        self.btn_select_all.setStyleSheet("""
-            QPushButton {
-                background: #e5e7eb; color: #374151; border: none;
-                border-radius: 6px; padding: 8px 16px; font-size: 13px;
-            }
-            QPushButton:hover { background: #d1d5db; }
-        """)
+        self.btn_select_all.setProperty("class", "secondary")
         self.btn_select_all.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_select_all.clicked.connect(self._toggle_select_all)
         cr.addWidget(self.btn_select_all)
@@ -127,15 +121,7 @@ class BookDetailPanel(QWidget):
         cr.addStretch()
 
         self.btn_backup = QPushButton("  开始备份")
-        self.btn_backup.setStyleSheet("""
-            QPushButton {
-                background-color: #10b981; color: white; border: none;
-                border-radius: 8px; padding: 10px 28px; font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #059669; }
-            QPushButton:disabled { background-color: #6ee7b7; }
-        """)
+        self.btn_backup.setProperty("class", "success")
         self.btn_backup.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_backup.clicked.connect(self._start_backup)
         cr.addWidget(self.btn_backup)

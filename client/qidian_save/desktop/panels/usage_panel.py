@@ -84,14 +84,7 @@ class UsagePanel(QWidget):
 
         # Refresh button
         self.btn_refresh = QPushButton("  刷新")
-        self.btn_refresh.setStyleSheet("""
-            QPushButton {
-                background: #2563eb; color: white; border: none;
-                border-radius: 8px; padding: 10px 24px; font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background: #1d4ed8; }
-        """)
+
         self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_refresh.clicked.connect(self._refresh)
         cl.addWidget(self.btn_refresh)
