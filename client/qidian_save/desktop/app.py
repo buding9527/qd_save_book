@@ -1,6 +1,5 @@
 """qidian_save 桌面主应用 — FluentWindow 重构版"""
 import sys, os
-from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QHBoxLayout,
     QDialog, QPushButton,
@@ -9,6 +8,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 
 from ..api_client import QidianSaveClient
+from .. import DATA_DIR
 from ..qidian_client import set_cookie_path
 
 from qfluentwidgets import (
@@ -17,7 +17,7 @@ from qfluentwidgets import (
 )
 from .theme import DESIGN_TOKENS, apply_design_tokens, load_qss
 
-TOKEN_FILE = Path.home() / ".qidian_save" / "token"
+TOKEN_FILE = DATA_DIR / "token"
 
 
 def _save_token(token: str):
@@ -54,7 +54,10 @@ class LoginDialog(QDialog):
         self.setMinimumSize(500, 500)
         self.resize(520, 600)
         self.setModal(True)
-        self.setStyleSheet("background-color: #f5f5f7;")
+        # 应用全局 QSS 主题
+        qss = load_qss(Theme.LIGHT)
+        if qss:
+            self.setStyleSheet(qss)
         self._init_ui()
         self._try_auto_login()
 

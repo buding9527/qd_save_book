@@ -1,6 +1,5 @@
 """CLI — 纯 API 调用 + ADB 工具（ADB 需本地设备）"""
 import sys, os, json, argparse, time, webbrowser, subprocess
-from pathlib import Path
 from .api_client import QidianSaveClient
 from . import DATA_DIR
 from .qidian_client import search_books as qidian_search, get_bookshelf, load_cookies, set_cookie_path
@@ -11,7 +10,7 @@ from .adb_utils import (
 )
 
 
-TOKEN_FILE = Path.home() / ".qidian_save" / "token"
+TOKEN_FILE = DATA_DIR / "token"
 
 
 def _save_token(token: str):

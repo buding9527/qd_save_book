@@ -1,4 +1,4 @@
-"""OAuth 登录面板 — 支持 GitHub Device Flow"""
+"""OAuth 登录面板 — 支持 GitHub Device Flow（样式由全局 QSS 控制）"""
 import webbrowser, threading, time
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
@@ -13,25 +13,6 @@ class _LoginSignal(QObject):
     poll_result = pyqtSignal(dict)
     login_error = pyqtSignal(str)
     login_success = pyqtSignal(str)
-
-
-
-
-SECTION_STYLE = """
-    QFrame#section {
-        background: white; border-radius: 12px;
-        padding: 32px; max-width: 520px;
-    }
-"""
-BTN_OUTLINE = """
-    QPushButton {
-        background: white; color: #374151; border: 1px solid #d1d5db;
-        border-radius: 8px; padding: 10px 24px; font-size: 14px;
-    }
-    QPushButton:hover { background: #f3f4f6; border-color: #9ca3af; }
-"""
-
-
 
 
 class LoginPanel(QWidget):
@@ -54,18 +35,17 @@ class LoginPanel(QWidget):
 
         section = QFrame()
         section.setObjectName("section")
-        section.setStyleSheet(SECTION_STYLE)
         section.setFixedWidth(520)
         sl = QVBoxLayout(section)
         sl.setSpacing(16)
 
         title = QLabel("欢迎使用 qidian_save")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #1f2937;")
+        title.setProperty("widget-type", "panel-title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sl.addWidget(title)
 
         subtitle = QLabel("登录以开始备份你的起点书籍")
-        subtitle.setStyleSheet("font-size: 13px; color: #6b7280;")
+        subtitle.setProperty("widget-type", "panel-subtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sl.addWidget(subtitle)
 
@@ -104,24 +84,21 @@ class LoginPanel(QWidget):
 
         # ── Status ──
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("font-size: 12px; color: #6b7280;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sl.addWidget(self.status_label)
 
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet("color: #e5e7eb;")
         sl.addWidget(divider)
 
         hint = QLabel("或粘贴已有 Token")
-        hint.setStyleSheet("font-size: 12px; color: #9ca3af;")
+        hint.setProperty("widget-type", "panel-subtitle")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sl.addWidget(hint)
 
         tr = QHBoxLayout()
         self.input_token = QLineEdit()
         self.input_token.setPlaceholderText("粘贴 JWT Token...")
-
         tr.addWidget(self.input_token, 1)
 
         self.btn_apply = QPushButton("应用")
@@ -135,15 +112,17 @@ class LoginPanel(QWidget):
         layout.addWidget(section)
 
     def _set_status(self, text: str, error: bool = False):
-        color = "#dc2626" if error else "#6366f1"
-        self.status_label.setStyleSheet(f"font-size: 12px; color: {color};")
-        self.status_label.setText(text)
+        p = self.status_label
+        p.setText(text)
+        p.setProperty("widget-type", "status-error" if error else "status-info")
+        # 强制 QSS 重新计算
+        if p.style():
+            p.style().unpolish(p)
+            p.style().polish(p)
 
     def show_auto_login_status(self, text: str, error: bool = False):
         """从外部设置自动登录状态（MainWindow._try_auto_login 调用）"""
-        color = "#dc2626" if error else "#6366f1"
-        self.status_label.setStyleSheet(f"font-size: 12px; color: {color};")
-        self.status_label.setText(text)
+        self._set_status(text, error)
 
     def _start_github_login(self):
         self.btn_github.setEnabled(False)

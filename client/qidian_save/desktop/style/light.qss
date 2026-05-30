@@ -15,7 +15,7 @@ QWidget[class="QWidget"] {
 }
 
 /* ── 面板上的卡片容器 ────────────────────────────────── */
-QFrame#CardWidget, QFrame[widget-type="card"] {
+QFrame#CardWidget, QFrame[widget-type="card"], QFrame#section {
     background-color: #ffffff;
     border: none;
     border-radius: 10px;
@@ -32,6 +32,16 @@ QLabel[widget-type="panel-title"] {
 QLabel[widget-type="panel-subtitle"] {
     font-size: 13px;
     color: #86868b;
+}
+
+QLabel[widget-type="status-info"] {
+    font-size: 12px;
+    color: #6366f1;
+}
+
+QLabel[widget-type="status-error"] {
+    font-size: 12px;
+    color: #dc2626;
 }
 
 /* ── 输入框 ───────────────────────────────────────────── */
