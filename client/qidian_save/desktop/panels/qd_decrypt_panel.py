@@ -158,8 +158,8 @@ class QDDecryptPanel(QWidget):
 
         bl.addLayout(params_row)
 
-        self.btn_decrypt = QPushButton("  🔓 解密选中章节")
-        self.btn_decrypt.setProperty("btn-type", "success")
+        self.btn_decrypt = QPushButton("  解密选中章节")
+        self.btn_decrypt.setProperty("btn-type", "secondary")
         self.btn_decrypt.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_decrypt.setFixedHeight(40)
         self.btn_decrypt.setEnabled(False)
@@ -458,7 +458,7 @@ class QDDecryptPanel(QWidget):
             for j in range(book.childCount()):
                 if book.child(j).checkState(0) == Qt.CheckState.Checked:
                     count += 1
-        self.btn_decrypt.setText(f"  🔓 解密选中章节 ({count})" if count else "  🔓 解密选中章节")
+        self.btn_decrypt.setText(f"  解密选中章节 ({count})" if count else "  解密选中章节")
         self.btn_decrypt.setEnabled(count > 0)
 
     # ── 解密 ────────────────────────────────────────────────────────

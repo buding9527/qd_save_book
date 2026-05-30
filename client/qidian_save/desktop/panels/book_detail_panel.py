@@ -121,7 +121,7 @@ class BookDetailPanel(QWidget):
         cr.addStretch()
 
         self.btn_backup = QPushButton("  开始备份")
-        self.btn_backup.setProperty("btn-type", "success")
+        self.btn_backup.setProperty("btn-type", "secondary")
         self.btn_backup.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_backup.clicked.connect(self._start_backup)
         cr.addWidget(self.btn_backup)

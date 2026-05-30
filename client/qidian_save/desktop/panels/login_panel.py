@@ -71,7 +71,7 @@ class LoginPanel(QWidget):
 
         # ── GitHub Device Flow ──
         self.btn_github = QPushButton("  使用 GitHub 登录")
-
+        self.btn_github.setProperty("btn-type", "secondary")
         self.btn_github.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_github.setFixedHeight(44)
         self.btn_github.clicked.connect(self._start_github_login)
@@ -125,7 +125,7 @@ class LoginPanel(QWidget):
         tr.addWidget(self.input_token, 1)
 
         self.btn_apply = QPushButton("应用")
-
+        self.btn_apply.setProperty("btn-type", "secondary")
         self.btn_apply.setFixedWidth(80)
         self.btn_apply.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_apply.clicked.connect(self._apply_token)
