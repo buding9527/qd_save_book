@@ -13,6 +13,7 @@
   <a href="#-功能">功能</a> ·
   <a href="#-快速开始">快速开始</a> ·
   <a href="#-项目结构">项目结构</a> ·
+  <a href="#-api-文档">API 文档</a> ·
   <a href="#-免责声明">免责声明</a>
 </p>
 
@@ -106,6 +107,18 @@ qidian_save/
 ```
 
 **设计原则：** 客户端仅负责 UI 和数据传输，所有爬取和解密算法均在服务端执行。
+
+## 📖 API 文档
+
+服务端 API 文档：[https://autohelp.asia/docs/api.md](https://autohelp.asia/docs/api.md)
+
+包含所有可用端点、请求格式和返回示例：
+- 认证 API（GitHub Device Flow / JWT）
+- 备份 API（扫码/Cookie上传/创建任务/下载章节）
+- .qd 解密 API
+- 用量查询 API
+- 公告 API
+- Admin 管理 API（商业用户）
 
 ## ⚠️ 免责声明
 
