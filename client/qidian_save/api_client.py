@@ -261,6 +261,14 @@ class QidianSaveClient:
         self._raise_on_error(resp)
         return resp.content
 
+    def download_apk_task_archive(self, task_id: int) -> bytes:
+        resp = self.session.get(
+            f"{self.base_url}/api/v1/apk/tasks/{task_id}/archive",
+            timeout=300,
+        )
+        self._raise_on_error(resp)
+        return resp.content
+
     def delete_apk_task(self, task_id: int) -> dict:
         return self._delete(f"/api/v1/apk/tasks/{task_id}")
 

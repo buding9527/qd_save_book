@@ -2,7 +2,8 @@
 
 import json
 import threading
-from pathlib import Path
+import io
+import zipfile
 
 from PyQt6.QtWidgets import (
     QLabel, QHBoxLayout, QPushButton, QTableWidget,
@@ -10,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
 
+from ...zip_utils import safe_extract_zip
 from ..components import PageHeader, StatCard, SurfaceCard, configure_page_layout
 
 
@@ -178,7 +180,7 @@ class ApkBackupPanel(QWidget):
 
     def _on_artifacts_ready(self, artifacts: list):
         self._artifacts = list(artifacts)
-        self.btn_download.setEnabled(len(artifacts) > 0)
+        self.btn_download.setEnabled(self._task_status == "completed" or len(artifacts) > 0)
 
         if not self.debug_mode:
             return
@@ -190,47 +192,21 @@ class ApkBackupPanel(QWidget):
             self.artifacts_table.setItem(row, 3, QTableWidgetItem(str(item.get("sizeBytes", ""))))
 
     def _download_results(self):
-        if not self._artifacts:
-            QMessageBox.information(self, "提示", "暂无可下载结果，请刷新任务")
+        if not self.task_id or self._task_status != "completed":
+            QMessageBox.information(self, "提示", "任务完成后才能下载结果")
             return
-
-        # Filter artifacts: only download text artifacts (skip .qd, metadata, etc.)
-        merge_text = bool(self._target_ref.get("mergeText"))
-        text_artifacts = [
-            a for a in self._artifacts
-            if a.get("artifactType") in ("text", "") or a.get("filename", "").endswith(".txt")
-        ]
-
-        if not text_artifacts:
-            QMessageBox.information(self, "提示", "暂无可下载的章节文本结果")
-            return
-
-        # If mergeText is true, pick the merge artifact (largest text file)
-        if merge_text:
-            selected = max(text_artifacts, key=lambda a: a.get("sizeBytes", 0))
-            text_artifacts = [selected]
 
         save_dir = QFileDialog.getExistingDirectory(self, "选择保存目录")
         if not save_dir:
             return
 
-        saved_files = []
-        for art in text_artifacts:
-            artifact_id = art.get("artifactId")
-            filename = art.get("filename", f"chapter_{artifact_id}.txt")
-            try:
-                data = self.client.download_apk_artifact(self.task_id, artifact_id)
-                dest = Path(save_dir) / filename
-                if isinstance(data, bytes):
-                    dest.write_bytes(data)
-                else:
-                    dest.write_text(str(data), encoding="utf-8")
-                saved_files.append(str(dest))
-            except Exception as e:
-                QMessageBox.warning(self, "下载失败", f"{filename}: {e}")
-
-        if saved_files:
+        try:
+            data = self.client.download_apk_task_archive(self.task_id)
+            with zipfile.ZipFile(io.BytesIO(data), "r") as zf:
+                saved_files = safe_extract_zip(zf, save_dir)
             QMessageBox.information(
                 self, "下载完成",
                 f"已保存 {len(saved_files)} 个文件到:\n{save_dir}"
             )
+        except Exception as e:
+            QMessageBox.warning(self, "下载失败", str(e))

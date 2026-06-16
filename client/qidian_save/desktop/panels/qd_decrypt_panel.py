@@ -65,6 +65,50 @@ def _qd_zip_arcname(chapter: dict) -> str:
     return f"{user_id}/{book_id}/{chapter_id}.qd"
 
 
+def _build_qd_zip_manifest(chapters: list[dict]) -> dict:
+    books: dict[str, dict] = {}
+    for chapter in chapters:
+        book_id = str(chapter.get("bookId", "")).strip()
+        chapter_id = str(chapter.get("chapterId", "")).strip()
+        if not book_id or not chapter_id:
+            continue
+        book = books.setdefault(book_id, {
+            "bookName": str(chapter.get("bookName", "") or ""),
+            "chapters": {},
+        })
+        if not book.get("bookName") and chapter.get("bookName"):
+            book["bookName"] = str(chapter.get("bookName"))
+        chapter_name = chapter.get("chapterName")
+        if chapter_name:
+            book["chapters"][chapter_id] = str(chapter_name)
+    return {"books": books}
+
+
+def _metadata_qd_entries(chapters: list[dict]) -> list[tuple[Path, str]]:
+    entries: list[tuple[Path, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for chapter in chapters:
+        user_id = str(chapter.get("userId", "")).strip() or "unknown"
+        book_id = str(chapter.get("bookId", "")).strip()
+        book_dir = Path(chapter.get("bookDir") or "")
+        if not book_id or not book_dir:
+            continue
+        key = (user_id, book_id)
+        if key in seen:
+            continue
+        meta_path = book_dir / "-10000.qd"
+        if meta_path.exists():
+            entries.append((meta_path, f"{user_id}/{book_id}/-10000.qd"))
+            seen.add(key)
+    return entries
+
+
+def _chapter_id_from_result_name(name: str) -> str:
+    stem = Path(name).stem
+    match = re.match(r"^(-?\d+)(?:\D|$)", stem)
+    return match.group(1) if match else stem
+
+
 class _DecryptSignal(QObject):
     log = pyqtSignal(str)
     error = pyqtSignal(str)
@@ -523,6 +567,16 @@ class QDDecryptPanel(QWidget):
     @staticmethod
     def _get_book_name(book_dir: Path, book_id: str) -> str:
         """从 SQLite DB 元数据章节提取真实书名"""
+        meta_path = book_dir / "_book_meta.json"
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text("utf-8"))
+                name = meta.get("bookName")
+                if name:
+                    return str(name)
+            except Exception:
+                pass
+
         candidates = []
         if book_id:
             candidates.append(book_dir / f"{book_id}.qd")
@@ -682,6 +736,7 @@ class QDDecryptPanel(QWidget):
                     selected.append({
                         "userId": str(book_data.get("userId", "")),
                         "bookId": str(book_data["bookId"]),
+                        "bookName": str(book_data.get("bookName", "")),
                         "bookDir": str(book_data.get("bookDir") or ""),
                         "chapterId": chapter_id,
                         "chapterName": chapter.get("name", chapter_id),
@@ -739,6 +794,10 @@ class QDDecryptPanel(QWidget):
                 with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                     for fp, arcname in qd_files:
                         zf.write(fp, arcname)
+                    manifest = _build_qd_zip_manifest(list(selected_by_chapter.values()))
+                    zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False))
+                    for meta_path, arcname in _metadata_qd_entries(list(selected_by_chapter.values())):
+                        zf.write(meta_path, arcname)
 
                 self._sig.log.emit(f"已打包 {len(qd_files)} 个文件，上传服务端解密...")
                 if session_ref:
@@ -764,11 +823,36 @@ class QDDecryptPanel(QWidget):
                                 pass
                             continue
 
+                        if name == "_books.json":
+                            try:
+                                books = json.loads(zf.read(name).decode("utf-8"))
+                            except Exception:
+                                books = {}
+                            for book_id, meta in books.items():
+                                if not isinstance(meta, dict):
+                                    continue
+                                book_name = str(meta.get("bookName") or "").strip()
+                                if not book_name:
+                                    continue
+                                book_targets = [
+                                    c for c in selected_by_chapter.values()
+                                    if str(c.get("bookId")) == str(book_id)
+                                ]
+                                for chapter in book_targets[:1]:
+                                    book_dir = Path(chapter["bookDir"])
+                                    (book_dir / "_book_meta.json").write_text(
+                                        json.dumps({"bookName": book_name}, ensure_ascii=False),
+                                        encoding="utf-8",
+                                    )
+                                self._sig.book_name_ready.emit(str(book_id), book_name)
+                                self._sig.log.emit(f"✅ 书名已识别: {book_name}")
+                            continue
+
                         if not name.endswith(".txt"):
                             continue
 
-                        # 服务端返回扁平文件名: {chapterId}.txt
-                        chapter_id = name.replace(".txt", "")
+                        # 服务端兼容返回 {chapterId}.txt 或 {chapterId}. 章节名.txt
+                        chapter_id = _chapter_id_from_result_name(name)
                         target = selected_by_chapter.get(chapter_id)
                         if not target:
                             self._sig.log.emit(f"⚠ 未知章节 ID: {chapter_id}，跳过")

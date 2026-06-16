@@ -19,6 +19,7 @@ class ApiClientApkRouteTests(unittest.TestCase):
             "get_apk_task",
             "list_apk_task_artifacts",
             "download_apk_artifact",
+            "download_apk_task_archive",
             "delete_apk_task",
         ]
         for name in methods:
