@@ -67,6 +67,23 @@ class BookDetailApkBackupTests(unittest.TestCase):
         self.assertEqual(target_ref["chapterIds"], [101])
         self.assertEqual(target_ref["downloadMode"], "batch")
 
+    def test_apk_mode_full_selection_still_uses_explicit_chapter_ids(self):
+        panel, _client = self._panel()
+        panel.load_book_context("book-1", "测试书")
+        panel._on_catalog({
+            "authorName": "作者",
+            "totalChapters": 2,
+            "chapters": [
+                {"chapterId": "101", "chapterName": "第一章", "isVip": False},
+                {"chapterId": "202", "chapterName": "第二章", "isVip": False},
+            ],
+        })
+
+        target_ref = panel._build_apk_target_ref([0, 1])
+
+        self.assertEqual(target_ref["chapterIds"], [101, 202])
+        self.assertFalse(target_ref["wholeBook"])
+
     def test_apk_mode_without_session_refuses_to_create_task(self):
         panel = BookDetailPanel(
             FakeClient(),

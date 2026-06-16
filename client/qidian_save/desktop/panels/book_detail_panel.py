@@ -300,7 +300,7 @@ class BookDetailPanel(QWidget):
             "bookName": self.book_name or self.label_title.text(),
             "chapterIds": chapter_ids,
             "chapterIndexes": checked_indices,
-            "wholeBook": len(chapter_ids) == len(self._chapters) and bool(chapter_ids),
+            "wholeBook": False,
             "downloadMode": "batch",
             "timeout": 60,
             "mergeText": self.chk_merge.isChecked(),
