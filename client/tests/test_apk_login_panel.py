@@ -9,7 +9,7 @@ CLIENT_DIR = Path(__file__).resolve().parents[1]
 if str(CLIENT_DIR) not in sys.path:
     sys.path.insert(0, str(CLIENT_DIR))
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 
 from qidian_save.desktop.panels.apk_login_panel import ApkLoginPanel
 
@@ -31,6 +31,15 @@ class FakeClient:
         self.last_challenge_payload = payload
         return {"sessionId": session_id, "stage": "authenticated", "challenge": None}
 
+    def get_announcements(self):
+        return [
+            {
+                "title": "维护通知",
+                "content": "今晚会短暂维护",
+                "priority": "important",
+            }
+        ]
+
 
 class ApkLoginPanelTests(unittest.TestCase):
     @classmethod
@@ -43,6 +52,12 @@ class ApkLoginPanelTests(unittest.TestCase):
         labels = [child.text() for child in panel.findChildren(QLabel)]
         joined = "\n".join(labels)
         self.assertIn("登录", joined)
+
+    def test_login_panel_contains_announcements_below_login_card(self):
+        panel = ApkLoginPanel(FakeClient())
+        announcement_panel = panel.findChild(QWidget, "announcementPanel")
+        self.assertIsNotNone(announcement_panel)
+        self.assertFalse(announcement_panel.isHidden())
 
     def test_password_mode_by_default(self):
         panel = ApkLoginPanel(FakeClient())

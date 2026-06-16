@@ -32,6 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='qidian_save/desktop/assets/dianbei.ico',
 )
 coll = COLLECT(
     exe,

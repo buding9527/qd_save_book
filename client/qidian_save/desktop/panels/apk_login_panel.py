@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..components import PageHeader, SurfaceCard, configure_page_layout
+from .announcement_panel import AnnouncementPanel
 
 try:
     from PyQt6.QtWebChannel import QWebChannel
@@ -168,6 +169,9 @@ class ApkLoginPanel(QWidget):
         login_layout.addWidget(self.challenge_hint)
         login_layout.addWidget(self.debug_view)
         layout.addWidget(login_card)
+
+        self.announcement_panel = AnnouncementPanel(self.client)
+        layout.addWidget(self.announcement_panel)
 
         self.captcha_card = SurfaceCard()
         captcha_layout = QVBoxLayout(self.captcha_card)
